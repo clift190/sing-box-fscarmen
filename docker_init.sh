@@ -63,11 +63,29 @@ install() {
   [ "$IS_BRUTAL" = 'false' ] && [ -x "$(type -p modprobe)" ] && modprobe brutal 2>/dev/null && IS_BRUTAL=true
 
   # 生成 sing-box 配置文件
-  if [[ "$SERVER_IP" =~ : ]]; then
-    local STRATEGY=prefer_ipv6
-  else
-    local STRATEGY=ipv4_only
-  fi
+  # 根据 IPv4 和 IPv6 的网络状态，使不同的 DNS 策略
+  for i in {1..3}; do
+    ping -c 1 -W 1 "151.101.1.91" &>/dev/null && local IS_IPV4=is_ipv4 && break
+  done
+
+  for i in {1..3}; do
+      ping6 -c 1 -W 1 "2a04:4e42:200::347" &>/dev/null && local IS_IPV6=is_ipv6 && break
+  done
+
+  case "${IS_IPV4}@${IS_IPV6}" in
+    is_ipv4@is_ipv6)
+      local STRATEGY=prefer_ipv4
+      ;;
+    is_ipv4@)
+      local STRATEGY=ipv4_only
+      ;;
+    @is_ipv6)
+      local STRATEGY=ipv6_only
+      ;;
+    *)
+      local STRATEGY=prefer_ipv4
+      ;;
+  esac
 
   local REALITY_KEYPAIR=$(${WORK_DIR}/sing-box generate reality-keypair) && REALITY_PRIVATE=$(awk '/PrivateKey/{print $NF}' <<< "$REALITY_KEYPAIR") && REALITY_PUBLIC=$(awk '/PublicKey/{print $NF}' <<< "$REALITY_KEYPAIR")
   local SHADOWTLS_PASSWORD=$(${WORK_DIR}/sing-box generate rand --base64 16)
